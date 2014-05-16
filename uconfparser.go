@@ -80,7 +80,6 @@ func NewConfiguration() *Configuration {
 // Comments arn't being stripped
 func Parse(filePath string, sectionExpr string, delimeter string, submatch bool) (*Configuration, error) {
 	filePath = path.Clean(filePath)
-
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -89,9 +88,7 @@ func Parse(filePath string, sectionExpr string, delimeter string, submatch bool)
 
 	config := newConfiguration(filePath)
 	activeSection := config.addSection("global")
-
 	secexp := regexp.MustCompile(sectionExpr)
-
 	scanner := bufio.NewScanner(bufio.NewReader(file))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -103,50 +100,41 @@ func Parse(filePath string, sectionExpr string, delimeter string, submatch bool)
 					activeSection = config.addSection(sub[1])
 					activeSection.printSection = false
 				}
-
 			//use the whole line as a section
 			case secexp.MatchString(line):
 				activeSection = config.addSection(line)
 				activeSection.printSection = false
-
 			case isSection(line):
 				fqn := strings.Trim(line, " []")
 				activeSection = config.addSection(fqn)
 				activeSection.printSection = true
 			}
-
 			activeSection.delimeter = delimeter
 			addOption(activeSection, line)
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
-
 	return config, nil
 }
 
 // Save the Configuration to file. Creates a backup (.bak) if file already exists.
 func Save(c *Configuration, filePath string) (err error) {
 	c.mutex.Lock()
-
 	err = os.Rename(filePath, filePath+".bak")
 	if err != nil {
 		if !os.IsNotExist(err) { // fine if the file does not exists
 			return err
 		}
 	}
-
 	f, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
-
 	defer func() {
 		err = f.Close()
 	}()
-
 	w := bufio.NewWriter(f)
 	defer func() {
 		err = w.Flush()
@@ -157,10 +145,8 @@ func Save(c *Configuration, filePath string) (err error) {
 	if err != nil {
 		return err
 	}
-
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
 	for _, v := range s {
 		w.WriteString(v.String())
 		w.WriteString("\n")
@@ -183,7 +169,6 @@ func (c *Configuration) FilePath() string {
 func (c *Configuration) SetFilePath(filePath string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
 	c.filePath = filePath
 }
 
@@ -202,7 +187,6 @@ func (c *Configuration) Delete(regex string) (sections []*Section, err error) {
 	sections, err = c.Find(regex)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
 	if err == nil {
 		for _, s := range sections {
 			delete(c.sections, s.fqn)
@@ -226,7 +210,6 @@ func (c *Configuration) Delete(regex string) (sections []*Section, err error) {
 func (c *Configuration) Section(fqn string) (*Section, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-
 	if l, ok := c.sections[fqn]; ok {
 		for e := l.Front(); e != nil; e = e.Next() {
 			s := e.Value.(*Section)
@@ -245,7 +228,6 @@ func (c *Configuration) AllSections() ([]*Section, error) {
 func (c *Configuration) Sections(fqn string) ([]*Section, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-
 	var sections []*Section
 
 	f := func(lst *list.List) {
@@ -254,7 +236,6 @@ func (c *Configuration) Sections(fqn string) ([]*Section, error) {
 			sections = append(sections, s)
 		}
 	}
-
 	if fqn == "" {
 		// Get all sections.
 		for _, fqn := range c.orderedSections {
@@ -269,7 +250,6 @@ func (c *Configuration) Sections(fqn string) ([]*Section, error) {
 			return nil, errors.New("Unable to find " + fqn)
 		}
 	}
-
 	return sections, nil
 }
 
@@ -277,7 +257,6 @@ func (c *Configuration) Sections(fqn string) ([]*Section, error) {
 func (c *Configuration) Find(regex string) ([]*Section, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-
 	var sections []*Section
 	for key, lst := range c.sections {
 		if matched, err := regexp.MatchString(regex, key); matched {
@@ -298,7 +277,6 @@ func (c *Configuration) Find(regex string) ([]*Section, error) {
 func (c *Configuration) PrintSection(fqn string) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-
 	sections, err := c.Sections(fqn)
 	if err == nil {
 		for _, section := range sections {
@@ -313,7 +291,6 @@ func (c *Configuration) PrintSection(fqn string) {
 func (c *Configuration) String() string {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-
 	var parts []string
 	for _, fqn := range c.orderedSections {
 		sections, _ := c.Sections(fqn)
@@ -328,17 +305,14 @@ func (c *Configuration) String() string {
 func (s *Section) Exists(option string) bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-
 	_, ok := s.options[option]
 	return ok
 }
 
 // ValueOf returns the value of specified option.
 func (s *Section) ValuesOf(option string) []string {
-
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	return s.options[option]
 }
 
@@ -346,13 +320,11 @@ func (s *Section) ValuesOf(option string) []string {
 func (s *Section) ReplaceValueFor(option string, oldValue, newValue string) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	if values, ok := s.options[option]; ok {
 		if oldValue == "" && len(values) > 0 {
 			values[0] = newValue
 			return true
 		}
-
 		for i, value := range values {
 			if value == oldValue {
 				values[i] = newValue
@@ -360,7 +332,6 @@ func (s *Section) ReplaceValueFor(option string, oldValue, newValue string) bool
 			}
 		}
 	}
-
 	return false
 }
 
@@ -368,7 +339,6 @@ func (s *Section) ReplaceValueFor(option string, oldValue, newValue string) bool
 func (s *Section) AddValueFor(option string, newValue string) []string {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	s.options[option] = append(s.options[option], newValue)
 	return s.options[option]
 }
@@ -378,19 +348,16 @@ func (s *Section) AddValueFor(option string, newValue string) []string {
 func (s *Section) Add(option string, newValue string) bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	var values []string
 	var ok bool
 	if values, ok = s.options[option]; !ok {
 		s.orderedOptions = append(s.orderedOptions, option)
 	}
-
 	for _, value := range values {
 		if value == newValue {
 			return false
 		}
 	}
-
 	s.options[option] = append(s.options[option], newValue)
 	return true
 }
@@ -399,7 +366,6 @@ func (s *Section) Add(option string, newValue string) bool {
 func (s *Section) DeleteOption(option string) (values []string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	values = s.options[option]
 	delete(s.options, option)
 	for i, opt := range s.orderedOptions {
@@ -414,9 +380,8 @@ func (s *Section) DeleteOption(option string) (values []string) {
 func (s *Section) DeleteOptionAndValue(option, value string) (values []string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
 	values = s.options[option]
-
+	
 	for i, val := range values {
 		if val == value {
 			values = append(values[:i], values[i+1:]...)
@@ -432,7 +397,6 @@ func (s *Section) DeleteOptionAndValue(option, value string) (values []string) {
 			}
 		}
 	}
-
 	return
 }
 
@@ -450,9 +414,7 @@ func (s *Section) OptionNames() []string {
 func (s *Section) String() string {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-
 	var parts []string
-
 	// dmitryo: don't print section name if we don't need it
 	var s_name string
 	if s.fqn == "global" || s.printSection == false {
@@ -461,7 +423,6 @@ func (s *Section) String() string {
 		s_name = "[" + s.fqn + "]\n"
 	}
 	parts = append(parts, s_name)
-
 	for _, opt := range s.orderedOptions {
 		values := s.options[opt]
 		if len(values) != 0 {
@@ -476,7 +437,6 @@ func (s *Section) String() string {
 			parts = append(parts, opt, "\n")
 		}
 	}
-
 	return strings.Join(parts, "")
 }
 
@@ -508,7 +468,6 @@ func addOption(s *Section, option string) {
 		// only insert keys. ex list of hosts
 		s.options[opt] = append(s.options[opt], "")
 	}
-
 	if addToOdered {
 		s.orderedOptions = append(s.orderedOptions, opt)
 	}
@@ -521,7 +480,6 @@ func parseOption(option string) (opt, value string) {
 		value = strings.Trim(option[i+1:], " ")
 		return
 	}
-
 	if i := strings.Index(option, "="); i != -1 {
 		opt, value = split(i, "=")
 	} else if i := strings.Index(option, ":"); i != -1 {
@@ -534,16 +492,13 @@ func parseOption(option string) (opt, value string) {
 
 func (c *Configuration) addSection(fqn string) *Section {
 	section := &Section{fqn: fqn, options: make(map[string][]string)}
-
 	var lst *list.List
 	if lst = c.sections[fqn]; lst == nil {
 		lst = list.New()
 		c.sections[fqn] = lst
 		c.orderedSections = append(c.orderedSections, fqn)
 	}
-
 	lst.PushBack(section)
-
 	return section
 }
 
